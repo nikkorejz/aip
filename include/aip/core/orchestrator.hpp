@@ -47,6 +47,8 @@ class Orchestrator final {
         /// @brief Подготовить стратегию и установить "текущий" вариант на первый (если он существует).
         virtual void reset() = 0;
 
+        virtual std::optional<std::vector<std::size_t>> currentIdx() const = 0;
+
         /// @brief Добавить текущую модель сегмента в piecewise-модель.
         virtual void addTo(PM& pm) const = 0;
 
@@ -113,6 +115,11 @@ class Orchestrator final {
             current = strat.next();
         }
 
+        std::optional<std::vector<std::size_t>> currentIdx() const override {
+            if (!current) return std::nullopt;
+            return std::vector<std::size_t>(current->begin(), current->end());
+        }
+
         void addTo(PM& pm) const override {
             assert(!!current && "Orchestrator's entry: index must be initialized");
             if (!current) {
@@ -142,8 +149,14 @@ class Orchestrator final {
 
     bool iterate_ready = false;
     bool iterate_finished = false;
+    std::size_t step{0};
 
    public:
+    struct Snapshot {
+        std::size_t step{};
+        std::vector<std::optional<std::vector<std::size_t>>> indices;  // per-entry
+    };
+
     Orchestrator() = default;
 
     void clear() {
@@ -175,6 +188,7 @@ class Orchestrator final {
     void reset() {
         iterate_ready = true;
         iterate_finished = false;
+        step = 0;
 
         if (entries.empty()) {
             iterate_finished = true;
@@ -213,6 +227,7 @@ class Orchestrator final {
         for (std::size_t i = 0; i < entries.size(); ++i) {
             if (entries[i]->next()) {
                 // удалось продвинуться без переноса
+                ++step;
                 return pm;
             }
             // перенос: сбросить этот сегмент на начало
@@ -225,6 +240,7 @@ class Orchestrator final {
             // иначе перенос пойдёт на следующий i+1 (цикл продолжится)
         }
 
+        ++step;
         return pm;  // возвращаем последнюю собранную перед завершением
     }
 
@@ -248,6 +264,14 @@ class Orchestrator final {
         }
 
         return pm;
+    }
+
+    [[nodiscard]] Snapshot snapshot() const {
+        Snapshot s;
+        s.step = step;
+        s.indices.reserve(entries.size());
+        for (const auto& e : entries) s.indices.push_back(e->currentIdx());
+        return s;
     }
 };
 

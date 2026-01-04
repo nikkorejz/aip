@@ -151,29 +151,12 @@ auto generateOriginal() {
     return data;
 }
 
-// Helper: local -> idx[] for a grid (mixed radix by bases)
 template <class Grid>
-auto local_to_idx(const Grid& grid, std::size_t local) {
-    constexpr std::size_t N = Grid::N;
-    std::array<std::size_t, N> idx{};
-
-    const auto space = aip::search::make_index_space(grid);
-    for (std::size_t i = 0; i < N; ++i) {
-        const std::size_t base = space.bases[i];
-        idx[i] = (base > 0) ? (local % base) : 0;
-        local = (base > 0) ? (local / base) : 0;
-    }
-    return idx;
-}
-
-template <class Grid>
-void print_params_for_grid(const char* title, const Grid& grid, std::size_t local) {
-    const auto idx = local_to_idx(grid, local);
-
+void print_params_for_grid(const char* title, const Grid& grid, const std::vector<std::size_t>& idx) {
     std::cout << "  [" << title << "]\n";
-    grid.forEachParam([&](typename Grid::ParamMeta meta, const auto& r) {
-        const auto i = meta.index;
-        const auto v = r[idx[i]];
+    grid.forEachParam([&](typename Grid::ParamMeta meta, const auto& range) {
+        const std::size_t i = meta.index;
+        const auto v = range[idx[i]];
         std::cout << "    " << meta.label << " = " << v << "\n";
     });
 }
@@ -213,16 +196,13 @@ int main() {
     // --- Brute-force search (measure only enumeration time) ---
     const auto t0 = std::chrono::steady_clock::now();
 
-    double bestScore = __DBL_MIN__;
-    // ВАЖНО: best_index — это индекс в порядке next().
-    // Для EnumerationStrategy и одного entry он совпадает с global.
-    std::size_t best_index = 0;
+    double best_score = __DBL_MIN__;
+    aip::core::Orchestrator<In, Out, SegDomain>::Snapshot best_snap;
 
     std::vector<Point> model_data;
     model_data.resize(original.size());
 
     orch.reset();
-    std::size_t i = 0;
     while (auto pm = orch.next()) {
         for (std::size_t i = 0; i < original.size(); ++i) {
             auto x = original[i].x;
@@ -230,11 +210,10 @@ int main() {
         }
 
         const double s = pearsonCorrelation(model_data, original);
-        if (std::isfinite(s) && s > bestScore) {
-            bestScore = s;
-            best_index = i;
+        if (std::isfinite(s) && s > best_score) {
+            best_score = s;
+            best_snap = orch.snapshot();
         }
-        ++i;
     }
 
     const auto t1 = std::chrono::steady_clock::now();
@@ -242,28 +221,15 @@ int main() {
 
     std::cout << "\nBest:\n";
     std::cout << "  elapsed (enumeration only): " << ms << " ms\n";
-    std::cout << "  best score: " << std::setprecision(6) << bestScore << "\n";
-    std::cout << "  best global index: " << best_index << "\n\n";
+    std::cout << "  best score: " << std::setprecision(6) << best_score << "\n";
+    std::cout << "  best step: " << best_snap.step << "\n\n";
 
     // --- Decode best_index into per-entry locals and print params via forEachParam (no hardcode) ---
 
-    std::size_t g = best_index;
-
-    const std::size_t szL = gL.size();
-    const std::size_t localL = (szL > 0) ? (g % szL) : 0;
-    g = (szL > 0) ? (g / szL) : 0;
-
-    const std::size_t szP = gP.size();
-    const std::size_t localP = (szP > 0) ? (g % szP) : 0;
-    g = (szP > 0) ? (g / szP) : 0;
-
-    const std::size_t szH = gH.size();
-    const std::size_t localH = (szH > 0) ? (g % szH) : 0;
-
     std::cout << "Best parameters (via forEachParam):\n";
-    print_params_for_grid("Line (x < x1)", gL, localL);
-    print_params_for_grid("Parabola (x1..x2)", gP, localP);
-    print_params_for_grid("Hyperbola (x >= x2)", gH, localH);
+    print_params_for_grid("Line (x < x1)", gL, *best_snap.indices[0]);
+    print_params_for_grid("Parabola (x1..x2)", gP, *best_snap.indices[1]);
+    print_params_for_grid("Hyperbola (x >= x2)", gH, *best_snap.indices[2]);
 
     return 0;
 }

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <utility>
 #include <optional>
+#include <typeindex>
 #include <type_traits>
 
 #include <aip/params/param_grid.hpp>
@@ -188,6 +189,14 @@ class Orchestrator final {
     }
 
     template <class Model, template <class> class RangeT, auto... Members>
+    void add(Domain d, aip::params::ParamGrid<Model, RangeT, Members...> grid) {
+        using G = aip::params::ParamGrid<Model, RangeT, Members...>;
+        entries.push_back(std::make_unique<Entry<G>>(std::move(d), std::move(grid), "Unnamed"));
+        iterate_ready = false;
+        iterate_finished = false;
+    }
+
+    template <class Model, template <class> class RangeT, auto... Members>
     void add(Domain d, aip::params::ParamGrid<Model, RangeT, Members...> grid, std::string name) {
         using G = aip::params::ParamGrid<Model, RangeT, Members...>;
         entries.push_back(std::make_unique<Entry<G>>(std::move(d), std::move(grid), std::move(name)));
@@ -305,6 +314,8 @@ class Orchestrator final {
         for (const auto& e : entries) s.indices.push_back(e->currentIdx());
         return s;
     }
+
+    inline const IEntry& operator[](size_t idx) const { return *entries[idx]; };
 };
 
 }  // namespace aip::core

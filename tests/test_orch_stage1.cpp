@@ -35,8 +35,10 @@ TEST(Orchestrator_IModelOnly, makePiecewise_works) {
     Grid g;
     g.get<0>() = {0.0, 1.0, 1.0};  // k: {0,1}
     g.get<1>() = {5, 6, 1};        // b: {5,6}
-    orch.add(Always{}, g);
+    orch.add(Always{}, g, "Test Name");
 
     auto pm = orch.makePiecewise(3);  // idx {1,1} => k=1, b=6
     EXPECT_DOUBLE_EQ(pm(0.0), 6001.0);
+
+    EXPECT_EQ("Test Name", orch[0].modelName());
 }

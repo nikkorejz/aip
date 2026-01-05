@@ -174,11 +174,25 @@ class Orchestrator final {
         iterate_finished = false;
     }
 
+    /**
+     * @brief Кол-во комбинаций
+     *
+     * @note Если кол-во комбинаций == 0, то это не значит, что оркестратор пустой, так как 0 может дать неправильно
+     * настроенная сетка.
+     */
     [[nodiscard]] std::size_t size() const noexcept {
         if (entries.empty()) return 0;
         std::size_t total = 1;
         for (const auto& e : entries) total *= e->size();
         return total;
+    }
+
+    [[nodiscard]] inline constexpr bool empty() const noexcept {
+        return entries.empty();
+    }
+
+    [[nodiscard]] inline constexpr std::size_t entryCount() const noexcept {
+        return entries.size();
     }
 
     /**

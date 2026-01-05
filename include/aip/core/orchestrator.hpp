@@ -9,6 +9,7 @@
 #include <optional>
 #include <type_traits>
 
+#include <aip/params/param_grid.hpp>
 #include <aip/model/piecewise_model.hpp>
 #include <aip/search/index_strategy.hpp>
 #include <aip/search/enumeration_strategy.hpp>

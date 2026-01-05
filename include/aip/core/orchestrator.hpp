@@ -63,6 +63,10 @@ class Orchestrator final {
          * @param local Локальный индекс (0..size()-1) внутри сегмента.
          */
         virtual void addAt(PM& pm, std::size_t local) const = 0;
+
+        virtual std::type_index modelType() const noexcept = 0;
+
+        virtual std::string_view modelName() const noexcept = 0;
     };
 
     /**
@@ -93,12 +97,14 @@ class Orchestrator final {
 
         Domain domain;
         Grid grid;
+        std::string model_name;
 
         search::IndexSpace<N> space{};
         Strategy strat{};
         std::optional<idx_type> current{};
 
-        Entry(Domain d, Grid g) : domain(std::move(d)), grid(std::move(g)) {}
+        Entry(Domain d, Grid g, std::string name)
+            : domain(std::move(d)), grid(std::move(g)), model_name(std::move(name)) {}
 
         [[nodiscard]] std::size_t size() const noexcept override { return grid.size(); }
 
@@ -144,6 +150,10 @@ class Orchestrator final {
             Model m = grid.makeModel(idx);
             pm.add(domain, std::make_shared<Model>(std::move(m)));
         }
+
+        std::type_index modelType() const noexcept override { return typeid(Model); }
+
+        std::string_view modelName() const noexcept override { return model_name; }
     };
 
     std::vector<std::unique_ptr<IEntry>> entries;
@@ -166,10 +176,21 @@ class Orchestrator final {
         iterate_finished = false;
     }
 
+    void removeEntry(size_t idx) {
+        assert(idx < entries.size() && "Out of range: idx must be less than entries size");
+        if (idx >= entries.size()) {
+            return;
+        }
+
+        entries.erase(entries.begin() + idx);
+        iterate_ready = false;
+        iterate_finished = false;
+    }
+
     template <class Model, template <class> class RangeT, auto... Members>
-    void add(Domain d, aip::params::ParamGrid<Model, RangeT, Members...> grid) {
+    void add(Domain d, aip::params::ParamGrid<Model, RangeT, Members...> grid, std::string name) {
         using G = aip::params::ParamGrid<Model, RangeT, Members...>;
-        entries.push_back(std::make_unique<Entry<G>>(std::move(d), std::move(grid)));
+        entries.push_back(std::make_unique<Entry<G>>(std::move(d), std::move(grid), std::move(name)));
         iterate_ready = false;
         iterate_finished = false;
     }
@@ -187,13 +208,9 @@ class Orchestrator final {
         return total;
     }
 
-    [[nodiscard]] inline constexpr bool empty() const noexcept {
-        return entries.empty();
-    }
+    [[nodiscard]] inline constexpr bool empty() const noexcept { return entries.empty(); }
 
-    [[nodiscard]] inline constexpr std::size_t entryCount() const noexcept {
-        return entries.size();
-    }
+    [[nodiscard]] inline constexpr std::size_t entryCount() const noexcept { return entries.size(); }
 
     /**
      * @brief Сбросить stateful-перебор (для next()).

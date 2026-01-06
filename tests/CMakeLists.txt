@@ -17,6 +17,7 @@ target_compile_definitions(gmock       PUBLIC GTEST_HAS_QUICK_EXIT=0)
 target_compile_definitions(gmock_main  PUBLIC GTEST_HAS_QUICK_EXIT=0)
 
 add_executable(aip_tests
+    test_unit_grid.cpp
     test_param_grid.cpp
     test_orch_stage1.cpp
     test_index_space.cpp
@@ -26,6 +27,7 @@ add_executable(aip_tests
     test_uniform_range.cpp
     test_parallel_async.cpp
     test_piecewise_model.cpp
+    test_constrained_line.cpp
     test_make_index_space.cpp
     test_enumeration_strategy.cpp
     test_orchestrator_strategy_enum.cpp

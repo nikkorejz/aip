@@ -12,3 +12,6 @@ target_link_libraries(aip_example_single_primitive_strategy PRIVATE aip)
 
 add_executable(aip_example_struct_in_struct_out example_struct_in_struct_out.cpp)
 target_link_libraries(aip_example_struct_in_struct_out PRIVATE aip)
+
+add_executable(aip_example_constrained_line_between_parabolas example_constrained_line_between_parabolas.cpp)
+target_link_libraries(aip_example_constrained_line_between_parabolas PRIVATE aip)

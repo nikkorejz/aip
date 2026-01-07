@@ -3,6 +3,8 @@
 #include <vector>
 #include <memory>
 #include <limits>
+#include <optional>
+#include <stdexcept>
 #include <type_traits>
 
 #include <aip/model/imodel.hpp>
@@ -21,7 +23,7 @@ namespace aip::model {
  * @tparam Domain Тип домена. Должен предоставлять `bool operator()(const In&) -> bool`.
  */
 template <typename In, typename Out, typename Domain>
-requires DomainLike<Domain, In>
+    requires DomainLike<Domain, In>
 class PiecewiseModel final : public IModel<In, Out> {
    private:
     struct Entry {
@@ -41,11 +43,25 @@ class PiecewiseModel final : public IModel<In, Out> {
      */
     void add(Domain d, std::shared_ptr<const IModel<In, Out>> m) { entries.push_back({std::move(d), std::move(m)}); }
 
-    [[nodiscard]] Out operator()(const In& x) const noexcept override {
+    [[nodiscard]] std::optional<Out> evaluate(const In& x) const noexcept {
         for (const auto& e : entries) {
             if (e.domain(x)) {
                 return (*e.model)(x);
             }
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] Out at(const In& x) const {
+        if (auto r = evaluate(x)) {
+            return *r;
+        }
+        throw std::out_of_range("No domain matches input");
+    }
+
+    [[nodiscard]] Out operator()(const In& x) const noexcept override {
+        if (auto r = evaluate(x)) {
+            return *r;
         }
 
         if constexpr (std::is_floating_point_v<Out>) {

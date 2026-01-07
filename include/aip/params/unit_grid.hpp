@@ -7,7 +7,7 @@ namespace aip::params {
 
 /**
  * @brief Решётка из одного варианта (для моделей без перебираемых параметров).
- * 
+ *
  * @example Может быть полезно для модели линии (kx + b) с 0 степенью свободы (заданы граничные точки)
  */
 template <class Model>
@@ -18,6 +18,16 @@ struct UnitGrid {
     [[nodiscard]] constexpr std::size_t size() const noexcept { return 1; }
 
     [[nodiscard]] constexpr Model makeModel(const std::array<std::size_t, 0>&) const noexcept { return Model{}; }
+
+    template <class Fn>
+    constexpr void forEachParam(Fn&&) noexcept {
+        // Нет параметров. Оставлено для совместимости
+    }
+
+    template <class Fn>
+    constexpr void forEachParam(Fn&&) const noexcept {
+        // Нет параметров. Оставлено для совместимости
+    }
 };
 
 }  // namespace aip::params

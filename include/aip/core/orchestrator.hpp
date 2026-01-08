@@ -238,6 +238,26 @@ class Orchestrator final {
     }
 
     inline const detail::IEntry<In, Out, Domain>& operator[](size_t idx) const { return *entries[idx]; };
+
+    [[nodiscard]] std::vector<std::size_t> decodeLocals(std::size_t global) const {
+        std::vector<std::size_t> locals;
+        locals.reserve(entries.size());
+
+        for (const auto& e : entries) {
+            const std::size_t sz = e->size();
+            const std::size_t local = (sz > 0) ? (global % sz) : 0;
+            global = (sz > 0) ? (global / sz) : 0;
+            locals.push_back(local);
+        }
+        return locals;
+    }
+
+    template <class Fn>
+    void forEachEntry(Fn&& fn) const {
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            fn(i, *entries[i]);
+        }
+    }
 };
 
 }  // namespace aip::core

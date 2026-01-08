@@ -72,6 +72,33 @@ struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, Str
     }
 
     bool isConstrained() const noexcept override { return true; }
+
+    void forEachParamAt(std::size_t local,
+                        const std::function<void(std::string_view label, std::string value)>& fn) const override {
+        if constexpr (N == 0) {
+            this->grid_.forEachParam([&](auto, const auto&) {});
+            (void)local;
+            return;
+        } else {
+            const auto space = aip::search::make_index_space(this->grid_);
+
+            idx_type idx{};
+            for (std::size_t i = 0; i < N; ++i) {
+                const std::size_t base = space.bases[i];
+                idx[i] = (base > 0) ? (local % base) : 0;
+                local = (base > 0) ? (local / base) : 0;
+            }
+
+            this->grid_.forEachParam([&](auto meta, const auto& range) {
+                const std::size_t pi = meta.index;
+
+                std::ostringstream oss;
+                oss << range[idx[pi]];
+
+                fn(meta.label, oss.str());
+            });
+        }
+    }
 };
 
 }  // namespace aip::core::detail

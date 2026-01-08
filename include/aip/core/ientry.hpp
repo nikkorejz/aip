@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <optional>
 #include <typeindex>
+#include <functional>
 #include <string_view>
 
 #include <aip/model/imodel.hpp>
@@ -67,13 +68,16 @@ struct IEntry {
 
     virtual std::type_index modelType() const noexcept { return typeid(M); };
 
-    virtual std::string_view modelName() const noexcept { 
+    virtual std::string_view modelName() const noexcept {
         if (!model_name.empty()) {
             return model_name;
         }
         return typeid(M).name();
-     };
+    };
 
     virtual bool isConstrained() const noexcept = 0;
+
+    virtual void forEachParamAt(std::size_t local,
+                                const std::function<void(std::string_view label, std::string value)>& fn) const = 0;
 };
 };  // namespace aip::core::detail

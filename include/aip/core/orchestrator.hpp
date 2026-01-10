@@ -41,6 +41,9 @@ class Orchestrator final {
 
    public:
     struct Snapshot {
+        /**
+         * @brief номер шага стратегии. Не путать с глобальным индексом оркестратора
+         */
         std::size_t step{};
         std::vector<std::optional<std::vector<std::size_t>>> indices;  // per-entry
     };

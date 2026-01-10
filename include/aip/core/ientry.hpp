@@ -79,5 +79,10 @@ struct IEntry {
 
     virtual void forEachParamAt(std::size_t local,
                                 const std::function<void(std::string_view label, std::string value)>& fn) const = 0;
+
+    /**
+     * Для работы со стратегией
+     */
+    virtual std::optional<std::size_t> localFromIdx(const std::vector<std::size_t>& idx) const noexcept = 0;
 };
 };  // namespace aip::core::detail

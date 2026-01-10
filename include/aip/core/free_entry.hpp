@@ -73,5 +73,25 @@ struct FreeEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, StrategyT>
             });
         }
     }
+
+    std::optional<std::size_t> localFromIdx(const std::vector<std::size_t>& idx) const noexcept override {
+        if constexpr (N == 0) return 0;
+
+        if (idx.size() != N) return std::nullopt;
+
+        std::size_t local = 0;
+        std::size_t mul = 1;
+
+        const auto space = aip::search::make_index_space(this->grid_);
+
+        for (std::size_t i = 0; i < N; ++i) {
+            const std::size_t base = space.bases[i];
+            if (base == 0) return std::nullopt;
+            if (idx[i] >= base) return std::nullopt;
+            local += idx[i] * mul;
+            mul *= base;
+        }
+        return local;
+    }
 };
 }  // namespace aip::core::detail

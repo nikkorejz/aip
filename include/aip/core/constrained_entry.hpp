@@ -34,7 +34,6 @@ struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, Str
           leftIn_(std::move(leftIn)),
           rightIn_(std::move(rightIn)),
           binder_(std::move(binder)) {
-        this->model_name = std::move(name);
     }
 
     std::shared_ptr<const IM<In, Out, Domain>> makeAt(
@@ -107,7 +106,7 @@ struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, Str
 
         std::size_t local = 0;
         std::size_t mul = 1;
-        
+
         const auto space = aip::search::make_index_space(this->grid_);
 
         for (std::size_t i = 0; i < N; ++i) {

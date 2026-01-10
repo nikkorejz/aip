@@ -103,6 +103,15 @@ class Orchestrator final {
         iterate_ready = false;
         iterate_finished = false;
     }
+    
+    template <class Grid, class Binder>
+    void addConstrained(Domain domain, Grid grid, const In& leftBoundaryIn, const In& rightBoundaryIn, Binder binder, std::string name) {
+        using EntryT = detail::ConstrainedEntry<In, Out, Domain, Grid, StrategyT, Binder>;
+        entries.push_back(std::make_unique<EntryT>(std::move(domain), std::move(grid), leftBoundaryIn, rightBoundaryIn,
+                                                   std::move(binder), std::move(name)));
+        iterate_ready = false;
+        iterate_finished = false;
+    }
 
     /**
      * @brief Кол-во комбинаций

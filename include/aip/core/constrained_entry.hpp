@@ -2,38 +2,69 @@
 
 #include <array>
 #include <cassert>
+#include <functional>
 #include <optional>
+#include <sstream>
+#include <tuple>
 #include <vector>
 #include <cstddef>
+#include <utility>
 
 #include <aip/core/entry_with_strategy_base.hpp>
 
 namespace aip::core::detail {
 
+template <typename T, typename In>
+concept BoundaryPairLike = requires(T&& t) {
+    { std::get<0>(std::forward<T>(t)) } -> std::convertible_to<In>;
+    { std::get<1>(std::forward<T>(t)) } -> std::convertible_to<In>;
+};
+
 template <typename Binder, typename Model, typename Out>
-concept BoundaryBinder = requires(Binder b, Model& m, const Out& l, const Out& r) {
+concept BoundaryBinderLegacy = requires(Binder b, Model& m, const Out& l, const Out& r) {
     { b(m, l, r) } -> std::same_as<void>;
 };
 
+template <typename Binder, typename Model, typename In, typename Out>
+concept BoundaryBinderWithInputs = requires(Binder b, Model& m, const In& lIn, const Out& lOut, const In& rIn,
+                                            const Out& rOut) {
+    { b(m, lIn, lOut, rIn, rOut) } -> std::same_as<void>;
+};
+
+template <typename BoundarySelector, typename In, typename Out, typename Domain>
+concept BoundarySelectorNoContext = requires(BoundarySelector s) {
+    { s() } -> BoundaryPairLike<In>;
+};
+
+template <typename BoundarySelector, typename In, typename Out, typename Domain>
+concept BoundarySelectorWithContext = requires(BoundarySelector s,
+                                               const std::vector<std::shared_ptr<const IM<In, Out, Domain>>>& built,
+                                               std::size_t self, const Domain& domain) {
+    { s(built, self, domain) } -> BoundaryPairLike<In>;
+};
+
 template <typename In, typename Out, typename Domain, typename Grid, template <std::size_t> typename StrategyT,
-          typename Binder>
+          typename Binder, typename BoundarySelector>
 struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, StrategyT> {
     using Model = typename Grid::model_type;
     static constexpr std::size_t N = Grid::N;
     using idx_type = std::array<std::size_t, N>;
 
-    static_assert(BoundaryBinder<Binder, Model, Out>,
-                  "Binder must be callable as binder(Model&, const Out&, const Out&)");
+    static_assert(BoundaryBinderLegacy<Binder, Model, Out> || BoundaryBinderWithInputs<Binder, Model, In, Out>,
+                  "Binder must be callable either as binder(Model&, const Out&, const Out&) or "
+                  "binder(Model&, const In&, const Out&, const In&, const Out&)");
+    static_assert(BoundarySelectorNoContext<BoundarySelector, In, Out, Domain> ||
+                      BoundarySelectorWithContext<BoundarySelector, In, Out, Domain>,
+                  "Boundary selector must be callable as selector() or "
+                  "selector(const vector<shared_ptr<const IModel<In,Out>>>& built, size_t self, const Domain&)");
 
-    In leftIn_;
-    In rightIn_;
     Binder binder_;
+    BoundarySelector boundarySelector_;
 
-    ConstrainedEntry(Domain d, Grid g, In leftIn, In rightIn, Binder binder, std::string name = {})
+    ConstrainedEntry(Domain d, Grid g, BoundarySelector boundarySelector, Binder binder, std::string name = {})
         : EntryWithStrategyBase<In, Out, Domain, Grid, StrategyT>(std::move(d), std::move(g), std::move(name)),
-          leftIn_(std::move(leftIn)),
-          rightIn_(std::move(rightIn)),
-          binder_(std::move(binder)) {
+          binder_(std::move(binder)),
+          boundarySelector_(std::move(boundarySelector)) {
     }
 
     std::shared_ptr<const IM<In, Out, Domain>> makeAt(
@@ -46,8 +77,18 @@ struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, Str
         const auto& rightM = built[self + 1];
         if (!leftM || !rightM) return {};
 
-        const Out leftOut = (*leftM)(leftIn_);
-        const Out rightOut = (*rightM)(rightIn_);
+        const auto boundaries = [&]() {
+            if constexpr (BoundarySelectorWithContext<BoundarySelector, In, Out, Domain>) {
+                return boundarySelector_(built, self, this->domain_);
+            } else {
+                return boundarySelector_();
+            }
+        }();
+
+        const In leftIn = std::get<0>(boundaries);
+        const In rightIn = std::get<1>(boundaries);
+        const Out leftOut = (*leftM)(leftIn);
+        const Out rightOut = (*rightM)(rightIn);
 
         // 1) делаем "черновую" модель из grid (или default, если UnitGrid)
         Model m{};
@@ -65,7 +106,11 @@ struct ConstrainedEntry final : EntryWithStrategyBase<In, Out, Domain, Grid, Str
         }
 
         // 2) подгоняем по границам
-        binder_(m, leftOut, rightOut);
+        if constexpr (BoundaryBinderLegacy<Binder, Model, Out>) {
+            binder_(m, leftOut, rightOut);
+        } else {
+            binder_(m, leftIn, leftOut, rightIn, rightOut);
+        }
 
         return std::make_shared<Model>(std::move(m));
     }

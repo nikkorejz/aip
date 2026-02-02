@@ -12,6 +12,7 @@
 #include <aip/core/orchestrator.hpp>
 
 #include <cmath>
+#include <utility>
 
 namespace {
 
@@ -52,6 +53,15 @@ struct FitLineBetween {
     double xL{};
     double xR{};
     void operator()(Line& line, const Out& yL, const Out& yR) const noexcept {
+        const double k = (yR - yL) / (xR - xL);
+        const double m = yL - k * xL;
+        line.k = k;
+        line.m = m;
+    }
+};
+
+struct FitLineBetweenInputs {
+    void operator()(Line& line, const In& xL, const Out& yL, const In& xR, const Out& yR) const noexcept {
         const double k = (yR - yL) / (xR - xL);
         const double m = yL - k * xL;
         line.k = k;
@@ -104,4 +114,40 @@ TEST(Constrained, line_between_two_parabolas_matches_boundaries) {
     const double yMid_expected = k * 0.0 + m;
 
     EXPECT_NEAR(pm(0.0), yMid_expected, 1e-12);
+}
+
+TEST(Constrained, line_between_two_parabolas_with_selector_and_in_aware_binder) {
+    const double x1 = -1.0;
+    const double x2 = 1.0;
+
+    using PGrid = aip::params::ParamGrid<Parabola, aip::params::UniformRange, &Parabola::a, &Parabola::b, &Parabola::c>;
+    PGrid leftG;
+    leftG.get<0>() = {1.0, 1.0, 1.0};
+    leftG.get<1>() = {0.0, 0.0, 1.0};
+    leftG.get<2>() = {0.0, 0.0, 1.0};
+
+    PGrid rightG;
+    rightG.get<0>() = {0.5, 0.5, 1.0};
+    rightG.get<1>() = {0.0, 0.0, 1.0};
+    rightG.get<2>() = {0.0, 0.0, 1.0};
+
+    aip::params::UnitGrid<Line> lineG;
+
+    aip::core::Orchestrator<In, Out, Domain> orch;
+    orch.add(Domain{Domain::Kind::Left, x1, x2}, leftG);
+    orch.addConstrained(
+        Domain{Domain::Kind::Mid, x1, x2}, lineG, FitLineBetweenInputs{},
+        [](const auto&, std::size_t, const Domain& d) { return std::pair<In, In>{d.x1, d.x2}; });
+    orch.add(Domain{Domain::Kind::Right, x1, x2}, rightG);
+
+    auto pm = orch.makePiecewise(0);
+
+    const double yL_expected = 1.0 * x1 * x1;
+    const double yR_expected = 0.5 * x2 * x2;
+    const double k = (yR_expected - yL_expected) / (x2 - x1);
+    const double m = yL_expected - k * x1;
+
+    EXPECT_NEAR(pm(x1), yL_expected, 1e-12);
+    EXPECT_NEAR(pm(x2 + 1e-9), yR_expected, 2e-9);
+    EXPECT_NEAR(pm(0.0), m, 1e-12);
 }

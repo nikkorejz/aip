@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <utility>
 
 namespace ex {
 
@@ -49,10 +50,7 @@ struct Line final : aip::model::IModel<In, Out> {
 
 // Binder: вписать прямую между (xL, yL) и (xR, yR)
 struct FitLineBetween {
-    double xL{};
-    double xR{};
-
-    void operator()(Line& line, const Out& yL, const Out& yR) const noexcept {
+    void operator()(Line& line, const In& xL, const Out& yL, const In& xR, const Out& yR) const noexcept {
         const double k = (yR - yL) / (xR - xL);
         const double m = yL - k * xL;
         line.k = k;
@@ -90,13 +88,12 @@ int main() {
 
     orch.add(Domain{Domain::Kind::Left,  x1, x2}, leftG);
 
-    // constrained линия: берём значения соседей на границах x1 и x2
+    // constrained линия: границы берём из текущего Mid-домена (без явного left/right In в вызове)
     orch.addConstrained(
         Domain{Domain::Kind::Mid, x1, x2},
         lineG,
-        /*leftBoundaryIn=*/x1,
-        /*rightBoundaryIn=*/x2,
-        FitLineBetween{x1, x2}
+        FitLineBetween{},
+        [](const auto&, std::size_t, const Domain& d) { return std::pair<In, In>{d.x1, d.x2}; }
     );
 
     orch.add(Domain{Domain::Kind::Right, x1, x2}, rightG);

@@ -5,6 +5,7 @@
 #include <vector>
 #include <cassert>
 #include <cstddef>
+#include <string>
 #include <utility>
 #include <optional>
 #include <typeindex>
@@ -32,6 +33,15 @@ class Orchestrator final {
 
     template <typename Grid>
     using FEntryT = detail::FreeEntry<In, Out, Domain, Grid, StrategyT>;
+
+    template <class Grid, class Binder, class BoundarySelector>
+    void addConstrainedImpl(Domain domain, Grid grid, BoundarySelector boundarySelector, Binder binder, std::string name = {}) {
+        using EntryT = detail::ConstrainedEntry<In, Out, Domain, Grid, StrategyT, Binder, BoundarySelector>;
+        entries.push_back(std::make_unique<EntryT>(std::move(domain), std::move(grid), std::move(boundarySelector),
+                                                   std::move(binder), std::move(name)));
+        iterate_ready = false;
+        iterate_finished = false;
+    }
 
     std::vector<std::unique_ptr<detail::IEntry<In, Out, Domain>>> entries;
 
@@ -90,27 +100,45 @@ class Orchestrator final {
      * Orchestrator при сборке вычисляет:
      *  - leftOut  = leftModel(leftBoundaryIn)
      *  - rightOut = rightModel(rightBoundaryIn)
-     * и вызывает binder(model, leftOut, rightOut).
+     * и вызывает binder(model, leftOut, rightOut) либо
+     * binder(model, leftIn, leftOut, rightIn, rightOut).
      *
      * @tparam Grid   Решётка параметров (ParamGrid или UnitGrid), задаёт свободные степени.
      * @tparam Binder Callable вида void(Model& m, const Out& leftOut, const Out& rightOut).
      */
     template <class Grid, class Binder>
     void addConstrained(Domain domain, Grid grid, const In& leftBoundaryIn, const In& rightBoundaryIn, Binder binder) {
-        using EntryT = detail::ConstrainedEntry<In, Out, Domain, Grid, StrategyT, Binder>;
-        entries.push_back(std::make_unique<EntryT>(std::move(domain), std::move(grid), leftBoundaryIn, rightBoundaryIn,
-                                                   std::move(binder)));
-        iterate_ready = false;
-        iterate_finished = false;
+        auto selector = [leftBoundaryIn, rightBoundaryIn]() -> std::pair<In, In> {
+            return {leftBoundaryIn, rightBoundaryIn};
+        };
+        addConstrainedImpl(std::move(domain), std::move(grid), std::move(selector), std::move(binder));
     }
-    
+
     template <class Grid, class Binder>
-    void addConstrained(Domain domain, Grid grid, const In& leftBoundaryIn, const In& rightBoundaryIn, Binder binder, std::string name) {
-        using EntryT = detail::ConstrainedEntry<In, Out, Domain, Grid, StrategyT, Binder>;
-        entries.push_back(std::make_unique<EntryT>(std::move(domain), std::move(grid), leftBoundaryIn, rightBoundaryIn,
-                                                   std::move(binder), std::move(name)));
-        iterate_ready = false;
-        iterate_finished = false;
+    void addConstrained(Domain domain, Grid grid, const In& leftBoundaryIn, const In& rightBoundaryIn, Binder binder,
+                        std::string name) {
+        auto selector = [leftBoundaryIn, rightBoundaryIn]() -> std::pair<In, In> {
+            return {leftBoundaryIn, rightBoundaryIn};
+        };
+        addConstrainedImpl(std::move(domain), std::move(grid), std::move(selector), std::move(binder), std::move(name));
+    }
+
+    /**
+     * @brief Добавить "связанный" сегмент без явного left/right In.
+     *
+     * Граничные входы выбирает @p boundarySelector:
+     *  - selector() -> pair-like(leftIn,rightIn), либо
+     *  - selector(built, selfIndex, domain) -> pair-like(leftIn,rightIn).
+     */
+    template <class Grid, class Binder, class BoundarySelector>
+    void addConstrained(Domain domain, Grid grid, Binder binder, BoundarySelector boundarySelector) {
+        addConstrainedImpl(std::move(domain), std::move(grid), std::move(boundarySelector), std::move(binder));
+    }
+
+    template <class Grid, class Binder, class BoundarySelector>
+    void addConstrained(Domain domain, Grid grid, Binder binder, BoundarySelector boundarySelector, std::string name) {
+        addConstrainedImpl(std::move(domain), std::move(grid), std::move(boundarySelector), std::move(binder),
+                           std::move(name));
     }
 
     /**

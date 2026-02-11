@@ -25,7 +25,7 @@ namespace aip::model {
 template <typename In, typename Out, typename Domain>
     requires DomainLike<Domain, In>
 class PiecewiseModel final : public IModel<In, Out> {
-   private:
+   public:
     struct Entry {
         Domain domain;
         std::shared_ptr<const IModel<In, Out>> model;

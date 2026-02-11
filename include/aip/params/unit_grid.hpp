@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <optional>
 
 namespace aip::params {
 
@@ -27,6 +28,12 @@ struct UnitGrid {
     template <class Fn>
     constexpr void forEachParam(Fn&&) const noexcept {
         // Нет параметров. Оставлено для совместимости
+    }
+
+    template <std::size_t I>
+    [[nodiscard]] constexpr auto& get() noexcept {
+        static_assert(I < N, "ParamGrid::get<I>: index out of range");
+        return std::nullopt;
     }
 };
 
